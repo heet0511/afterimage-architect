@@ -1,7 +1,9 @@
 {
-    "id": "level-003",
-    "name": "Borrowed Weight",
-    "spawn": {
+  "id": "level-003",
+  "name": "Borrowed Weight",
+  "instruction": "Record yourself holding the plate, then restart and let your afterimage help.",
+  "hint": "Press R after standing on the plate. Your ghost will replay that attempt.",
+  "spawn": {
       "x": 5,
       "y": 5
     },

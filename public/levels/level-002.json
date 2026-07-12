@@ -1,7 +1,9 @@
 {
-    "id": "level-002",
-    "name": "Hold the Line",
-    "spawn": {
+  "id": "level-002",
+  "name": "Hold the Line",
+  "instruction": "Stand on the pressure plate to open the door.",
+  "hint": "The door closes when nothing is holding the plate.",
+  "spawn": {
       "x": 5,
       "y": 5
     },

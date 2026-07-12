@@ -17,6 +17,8 @@ export type DoorData = TilePoint & {
 export type LevelData = {
   id: string;
   name: string;
+  instruction: string;
+  hint: string;
   spawn: TilePoint;
   exit: TilePoint;
   walls: TilePoint[];

@@ -1,7 +1,9 @@
 {
-    "id": "level-001",
-    "name": "First Contact",
-    "spawn": {
+  "id": "level-001",
+  "name": "First Contact",
+  "instruction": "Reach the exit portal.",
+  "hint": "Use WASD or arrow keys to move.",
+  "spawn": {
       "x": 5,
       "y": 5
     },

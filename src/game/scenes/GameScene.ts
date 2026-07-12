@@ -815,25 +815,41 @@ export class GameScene extends Phaser.Scene {
       color: "#d7faff",
     });
 
-    this.add.text(24, 48, `Step 14: ${this.level.name}`, {
-      fontFamily: "monospace",
-      fontSize: "13px",
-      color: "#8fdbe8",
-    });
+    const levelNumber = LEVEL_KEYS.indexOf(this.currentLevelKey) + 1;
 
-    this.timelineText = this.add.text(24, 74, "", {
+this.add.text(24, 48, `Level ${levelNumber}/${LEVEL_KEYS.length}: ${this.level.name}`, {
+  fontFamily: "monospace",
+  fontSize: "14px",
+  color: "#8fdbe8",
+});
+
+this.add.text(24, 72, this.level.instruction, {
+  fontFamily: "monospace",
+  fontSize: "13px",
+  color: "#d7faff",
+  wordWrap: { width: 520 },
+});
+
+this.add.text(24, 96, this.level.hint, {
+  fontFamily: "monospace",
+  fontSize: "12px",
+  color: "#6f96a3",
+  wordWrap: { width: 520 },
+});
+
+this.timelineText = this.add.text(24, 128, "", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#d7faff",
     });
 
-    this.recordingText = this.add.text(24, 98, "", {
+    this.recordingText = this.add.text(24, 152, "", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#8fdbe8",
     });
 
-    this.ghostText = this.add.text(24, 122, "", {
+    this.ghostText = this.add.text(24, 176, "", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#9fffe4",
