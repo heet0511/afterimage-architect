@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { LEVEL_KEYS, SAVE_KEY, type LevelKey } from "../levels";
 import {
     COLORS,
     EXIT_SIZE,
@@ -20,11 +21,6 @@ import type {
   WasdKeys,
 } from "../types";
 
-const LEVEL_KEYS = ["level-001", "level-002", "level-003"] as const;
-
-type LevelKey = (typeof LEVEL_KEYS)[number];
-
-const SAVE_KEY = "afterimage-architect-progress";
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Rectangle;
@@ -43,6 +39,7 @@ export class GameScene extends Phaser.Scene {
   private levelTwoKey!: Phaser.Input.Keyboard.Key;
   private levelThreeKey!: Phaser.Input.Keyboard.Key;
   private continueKey!: Phaser.Input.Keyboard.Key;
+  private menuKey!: Phaser.Input.Keyboard.Key;
 
   private timelineText!: Phaser.GameObjects.Text;
   private recordingText!: Phaser.GameObjects.Text;
@@ -105,7 +102,13 @@ export class GameScene extends Phaser.Scene {
     this.createHud();
   }
 
+  
   update(_time: number, delta: number): void {
+    if (Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+      this.scene.start("LevelSelectScene");
+      return;
+    }
+  
     if (Phaser.Input.Keyboard.JustDown(this.levelOneKey)) {
       this.switchToLevel("level-001");
       return;
@@ -224,6 +227,10 @@ export class GameScene extends Phaser.Scene {
 
     this.continueKey = this.input.keyboard.addKey(
         Phaser.Input.Keyboard.KeyCodes.ENTER,
+      );
+
+      this.menuKey = this.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.ESC,
       );
       
       this.input.keyboard.addCapture([
@@ -855,7 +862,7 @@ this.timelineText = this.add.text(24, 128, "", {
       color: "#9fffe4",
     });
 
-    this.add.text(24, GAME_HEIGHT - 40, "1/2/3: level | Enter/N: next | R: afterimage | Backspace: reset", {
+    this.add.text(24, GAME_HEIGHT - 40, "Esc: menu | Enter/N: next | R: afterimage | Backspace: reset", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#6f96a3",
