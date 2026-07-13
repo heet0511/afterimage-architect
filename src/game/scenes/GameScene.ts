@@ -1,17 +1,17 @@
 import Phaser from "phaser";
-import { LEVEL_KEYS, SAVE_KEY, type LevelKey } from "../levels";
 import {
-    COLORS,
-    EXIT_SIZE,
-    GAME_HEIGHT,
-    GAME_WIDTH,
-    MAX_SIMULATION_STEPS_PER_FRAME,
-    PLAYER_SIZE,
-    PLAYER_SPEED,
-    PLATE_SIZE,
-    SIMULATION_STEP_MS,
-    TILE_SIZE,
-  } from "../constants";
+  COLORS,
+  EXIT_SIZE,
+  GAME_HEIGHT,
+  GAME_WIDTH,
+  MAX_SIMULATION_STEPS_PER_FRAME,
+  PLAYER_SIZE,
+  PLAYER_SPEED,
+  PLATE_SIZE,
+  SIMULATION_STEP_MS,
+  TILE_SIZE,
+} from "../constants";
+import { LEVEL_KEYS, SAVE_KEY, type LevelKey } from "../levels";
 import type {
   DoorState,
   GhostState,
@@ -20,7 +20,6 @@ import type {
   PlayerInputFrame,
   WasdKeys,
 } from "../types";
-
 
 export class GameScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Rectangle;
@@ -31,14 +30,18 @@ export class GameScene extends Phaser.Scene {
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasdKeys!: WasdKeys;
+
   private restartTimelineKey!: Phaser.Input.Keyboard.Key;
   private fullResetKey!: Phaser.Input.Keyboard.Key;
   private shiftKey!: Phaser.Input.Keyboard.Key;
+
   private nextLevelKey!: Phaser.Input.Keyboard.Key;
   private levelOneKey!: Phaser.Input.Keyboard.Key;
   private levelTwoKey!: Phaser.Input.Keyboard.Key;
   private levelThreeKey!: Phaser.Input.Keyboard.Key;
   private continueKey!: Phaser.Input.Keyboard.Key;
+
+  private pauseKey!: Phaser.Input.Keyboard.Key;
   private menuKey!: Phaser.Input.Keyboard.Key;
 
   private timelineText!: Phaser.GameObjects.Text;
@@ -47,6 +50,7 @@ export class GameScene extends Phaser.Scene {
 
   private currentLevelKey: LevelKey = "level-001";
   private level!: LevelData;
+
   private wallBounds: Phaser.Geom.Rectangle[] = [];
 
   private plates: PlateState[] = [];
@@ -55,7 +59,11 @@ export class GameScene extends Phaser.Scene {
 
   private levelComplete = false;
   private completionViews: Phaser.GameObjects.GameObject[] = [];
+
   private fixedStepAccumulator = SIMULATION_STEP_MS;
+
+  private isPaused = false;
+  private pauseOverlayViews: Phaser.GameObjects.GameObject[] = [];
 
   private timelineNumber = 1;
   private currentRecording: PlayerInputFrame[] = [];
@@ -67,15 +75,20 @@ export class GameScene extends Phaser.Scene {
 
   init(data?: { levelKey?: LevelKey }): void {
     this.currentLevelKey = data?.levelKey ?? "level-001";
-  
+
     this.wallBounds = [];
     this.plates = [];
     this.doors = [];
     this.ghosts = [];
+
     this.levelComplete = false;
     this.completionViews = [];
+
     this.fixedStepAccumulator = SIMULATION_STEP_MS;
-  
+
+    this.isPaused = false;
+    this.pauseOverlayViews = [];
+
     this.timelineNumber = 1;
     this.currentRecording = [];
     this.savedRecordings = [];
@@ -102,92 +115,110 @@ export class GameScene extends Phaser.Scene {
     this.createHud();
   }
 
-  
   update(_time: number, delta: number): void {
+    if (Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
+      this.togglePause();
+      return;
+    }
+
+    const restartPressed = Phaser.Input.Keyboard.JustDown(this.restartTimelineKey);
+    const fullResetPressed =
+      Phaser.Input.Keyboard.JustDown(this.fullResetKey) ||
+      (restartPressed && this.shiftKey.isDown);
+
+    if (fullResetPressed) {
+      this.fullResetLevel();
+      return;
+    }
+
+    if (this.isPaused) {
+      if (Phaser.Input.Keyboard.JustDown(this.continueKey)) {
+        this.togglePause();
+        return;
+      }
+
+      if (Phaser.Input.Keyboard.JustDown(this.menuKey)) {
+        this.scene.start("LevelSelectScene");
+        return;
+      }
+
+      return;
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.menuKey)) {
       this.scene.start("LevelSelectScene");
       return;
     }
-  
+
     if (Phaser.Input.Keyboard.JustDown(this.levelOneKey)) {
       this.switchToLevel("level-001");
       return;
     }
-  
+
     if (Phaser.Input.Keyboard.JustDown(this.levelTwoKey)) {
       this.switchToLevel("level-002");
       return;
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.levelThreeKey)) {
-        this.switchToLevel("level-003");
-        return;
-      }
-  
-    if (
-        Phaser.Input.Keyboard.JustDown(this.nextLevelKey) ||
-        Phaser.Input.Keyboard.JustDown(this.continueKey)
-      ) {
-        this.switchToNextLevel();
-        return;
-      }
-  
-    const restartPressed = Phaser.Input.Keyboard.JustDown(this.restartTimelineKey);
-    const fullResetPressed =
-      Phaser.Input.Keyboard.JustDown(this.fullResetKey) ||
-      (restartPressed && this.shiftKey.isDown);
-  
-    if (fullResetPressed) {
-      this.fullResetLevel();
+      this.switchToLevel("level-003");
       return;
     }
-  
+
+    if (
+      Phaser.Input.Keyboard.JustDown(this.nextLevelKey) ||
+      Phaser.Input.Keyboard.JustDown(this.continueKey)
+    ) {
+      this.switchToNextLevel();
+      return;
+    }
+
     if (this.levelComplete) {
       return;
     }
-  
+
     if (restartPressed) {
       this.restartTimeline();
       return;
     }
-  
+
     const safeDelta = Math.min(
-        delta,
-        SIMULATION_STEP_MS * MAX_SIMULATION_STEPS_PER_FRAME,
-      );
-      
-      this.fixedStepAccumulator += safeDelta;
-  
+      delta,
+      SIMULATION_STEP_MS * MAX_SIMULATION_STEPS_PER_FRAME,
+    );
+
+    this.fixedStepAccumulator += safeDelta;
+
     let simulationSteps = 0;
-  
+
     while (
       this.fixedStepAccumulator >= SIMULATION_STEP_MS &&
       simulationSteps < MAX_SIMULATION_STEPS_PER_FRAME
     ) {
       this.runFixedSimulationStep(SIMULATION_STEP_MS);
-  
+
       this.fixedStepAccumulator -= SIMULATION_STEP_MS;
       simulationSteps += 1;
-  
+
       if (this.levelComplete) {
         break;
       }
     }
-  
+
     if (simulationSteps >= MAX_SIMULATION_STEPS_PER_FRAME) {
       this.fixedStepAccumulator = 0;
     }
-  
+
     this.updateHud();
   }
 
   private runFixedSimulationStep(delta: number): void {
     const inputFrame = this.captureInputFrame();
     this.currentRecording.push(inputFrame);
-  
+
     this.moveGhosts(delta);
     this.movePlayerFromInput(inputFrame, delta);
-  
+
     this.updatePuzzleState();
     this.checkWinCondition();
   }
@@ -199,10 +230,9 @@ export class GameScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
 
-    const keys = this.input.keyboard.addKeys("W,A,S,D,R,N,ONE,TWO,THREE") as Record<
-  string,
-  Phaser.Input.Keyboard.Key
->;
+    const keys = this.input.keyboard.addKeys(
+      "W,A,S,D,R,N,P,ONE,TWO,THREE",
+    ) as Record<string, Phaser.Input.Keyboard.Key>;
 
     this.wasdKeys = {
       W: keys.W,
@@ -212,30 +242,40 @@ export class GameScene extends Phaser.Scene {
     };
 
     this.restartTimelineKey = keys.R;
-    this.fullResetKey = this.input.keyboard.addKey(
-        Phaser.Input.Keyboard.KeyCodes.BACKSPACE,
-      );
-      
-      this.shiftKey = this.input.keyboard.addKey(
-        Phaser.Input.Keyboard.KeyCodes.SHIFT,
-      );
 
-      this.nextLevelKey = keys.N;
-      this.levelOneKey = keys.ONE;
-      this.levelTwoKey = keys.TWO;
-      this.levelThreeKey = keys.THREE;
+    this.fullResetKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.BACKSPACE,
+    );
+
+    this.shiftKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SHIFT,
+    );
+
+    this.nextLevelKey = keys.N;
+    this.levelOneKey = keys.ONE;
+    this.levelTwoKey = keys.TWO;
+    this.levelThreeKey = keys.THREE;
 
     this.continueKey = this.input.keyboard.addKey(
-        Phaser.Input.Keyboard.KeyCodes.ENTER,
-      );
+      Phaser.Input.Keyboard.KeyCodes.ENTER,
+    );
 
-      this.menuKey = this.input.keyboard.addKey(
-        Phaser.Input.Keyboard.KeyCodes.ESC,
-      );
-      
-      this.input.keyboard.addCapture([
-        Phaser.Input.Keyboard.KeyCodes.BACKSPACE,
-      ]);
+    this.pauseKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.ESC,
+    );
+
+    this.menuKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.M,
+    );
+
+    keys.P.on("down", () => {
+      this.togglePause();
+    });
+
+    this.input.keyboard.addCapture([
+      Phaser.Input.Keyboard.KeyCodes.BACKSPACE,
+      Phaser.Input.Keyboard.KeyCodes.ESC,
+    ]);
   }
 
   private captureInputFrame(): PlayerInputFrame {
@@ -250,33 +290,33 @@ export class GameScene extends Phaser.Scene {
   private switchToLevel(levelKey: LevelKey): void {
     this.scene.restart({ levelKey });
   }
-  
+
   private switchToNextLevel(): void {
     const currentIndex = LEVEL_KEYS.indexOf(this.currentLevelKey);
     const nextIndex = currentIndex + 1;
-  
+
     if (nextIndex >= LEVEL_KEYS.length) {
       this.switchToLevel("level-001");
       return;
     }
-  
+
     const nextLevelKey = LEVEL_KEYS[nextIndex];
     this.switchToLevel(nextLevelKey);
   }
-  
+
   private isFinalLevel(): boolean {
     return LEVEL_KEYS.indexOf(this.currentLevelKey) === LEVEL_KEYS.length - 1;
   }
-  
+
   private saveProgress(): void {
     const currentIndex = LEVEL_KEYS.indexOf(this.currentLevelKey);
     const unlockedIndex = Math.min(currentIndex + 1, LEVEL_KEYS.length - 1);
-  
+
     const saveData = {
       highestUnlockedLevelIndex: unlockedIndex,
       lastCompletedLevel: this.currentLevelKey,
     };
-  
+
     localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
   }
 
@@ -307,27 +347,120 @@ export class GameScene extends Phaser.Scene {
     this.timelineNumber = 1;
     this.levelComplete = false;
     this.fixedStepAccumulator = SIMULATION_STEP_MS;
-  
+
+    this.isPaused = false;
+    this.destroyPauseOverlay();
+
     this.destroyCompletionViews();
     this.destroyGhosts();
-  
+
     this.resetPlayerToSpawn();
-  
+
     this.player.setFillStyle(COLORS.player, 1);
     this.playerGlow.setAlpha(0.18);
-  
+
     this.updatePuzzleState();
     this.updateHud();
-  
+
     this.cameras.main.flash(220, 255, 120, 120);
   }
-  
+
+  private togglePause(): void {
+    if (this.levelComplete) {
+      return;
+    }
+
+    this.isPaused = !this.isPaused;
+
+    if (this.isPaused) {
+      this.createPauseOverlay();
+    } else {
+      this.destroyPauseOverlay();
+    }
+  }
+
+  private createPauseOverlay(): void {
+    this.destroyPauseOverlay();
+
+    const panel = this.add
+      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 560, 260, 0x02030a, 0.94)
+      .setStrokeStyle(1, 0x5fffd7, 0.7);
+
+    const title = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 92, "PAUSED", {
+        fontFamily: "monospace",
+        fontSize: "30px",
+        color: "#d7faff",
+      })
+      .setOrigin(0.5);
+
+    const subtitle = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 54, "Afterimage Architect", {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: "#8fdbe8",
+      })
+      .setOrigin(0.5);
+
+    const controls = this.add
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2 + 6,
+        [
+          "Enter / Esc / P  Resume",
+          "R                Create afterimage",
+          "Backspace        Reset current level",
+          "M                Return to level select",
+          "WASD / Arrows    Move",
+        ],
+        {
+          fontFamily: "monospace",
+          fontSize: "14px",
+          color: "#d7faff",
+          align: "left",
+          lineSpacing: 8,
+        },
+      )
+      .setOrigin(0.5);
+
+    const settingsText = this.add
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2 + 100,
+        "Settings: sound and visual options coming next",
+        {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#6f96a3",
+        },
+      )
+      .setOrigin(0.5);
+
+    this.pauseOverlayViews = [panel, title, subtitle, controls, settingsText];
+  }
+
+  private destroyPauseOverlay(): void {
+    for (const view of this.pauseOverlayViews) {
+      view.destroy();
+    }
+
+    this.pauseOverlayViews = [];
+  }
+
+  private destroyCompletionViews(): void {
+    for (const view of this.completionViews) {
+      view.destroy();
+    }
+
+    this.completionViews = [];
+  }
+
   private destroyGhosts(): void {
     for (const ghost of this.ghosts) {
       ghost.view.destroy();
       ghost.glow.destroy();
     }
-  
+
     this.ghosts = [];
   }
 
@@ -568,25 +701,25 @@ export class GameScene extends Phaser.Scene {
   private completeLevel(): void {
     this.levelComplete = true;
     this.saveProgress();
-  
+
     this.player.setFillStyle(0xffffff);
     this.playerGlow.setAlpha(0.5);
-  
+
     const isFinalLevel = this.isFinalLevel();
-  
+
     const titleText = isFinalLevel ? "DEMO COMPLETE" : "LEVEL COMPLETE";
     const subtitleText = isFinalLevel
       ? "You completed the current prototype levels."
       : "You used timelines to solve the room.";
-  
+
     const nextTextValue = isFinalLevel
       ? "Press Enter / N to replay from Level 1"
       : "Press Enter / N for next level";
-  
+
     const panel = this.add
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, 560, 170, 0x02030a, 0.9)
       .setStrokeStyle(1, 0x5fffd7, 0.6);
-  
+
     const title = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 38, titleText, {
         fontFamily: "monospace",
@@ -594,7 +727,7 @@ export class GameScene extends Phaser.Scene {
         color: "#d7faff",
       })
       .setOrigin(0.5);
-  
+
     const subtitle = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 2, subtitleText, {
         fontFamily: "monospace",
@@ -602,7 +735,7 @@ export class GameScene extends Phaser.Scene {
         color: "#8fdbe8",
       })
       .setOrigin(0.5);
-  
+
     const nextText = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 32, nextTextValue, {
         fontFamily: "monospace",
@@ -610,24 +743,21 @@ export class GameScene extends Phaser.Scene {
         color: "#9fffe4",
       })
       .setOrigin(0.5);
-  
-    const resetText = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 56, "Backspace / Shift+R: reset current level", {
-        fontFamily: "monospace",
-        fontSize: "12px",
-        color: "#6f96a3",
-      })
-      .setOrigin(0.5);
-  
-    this.completionViews = [panel, title, subtitle, nextText, resetText];
-  }
 
-  private destroyCompletionViews(): void {
-    for (const view of this.completionViews) {
-      view.destroy();
-    }
-  
-    this.completionViews = [];
+    const resetText = this.add
+      .text(
+        GAME_WIDTH / 2,
+        GAME_HEIGHT / 2 + 56,
+        "Backspace / Shift+R: reset current level",
+        {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#6f96a3",
+        },
+      )
+      .setOrigin(0.5);
+
+    this.completionViews = [panel, title, subtitle, nextText, resetText];
   }
 
   private getActorBoundsAt(x: number, y: number): Phaser.Geom.Rectangle {
@@ -765,7 +895,14 @@ export class GameScene extends Phaser.Scene {
 
     this.exitCore = this.add.circle(exitX, exitY, 16, COLORS.exitCore, 0.9);
 
-    this.exitRing = this.add.rectangle(exitX, exitY, 42, 42, COLORS.exitRing, 0.14);
+    this.exitRing = this.add.rectangle(
+      exitX,
+      exitY,
+      42,
+      42,
+      COLORS.exitRing,
+      0.14,
+    );
 
     this.exitRing.setStrokeStyle(2, COLORS.exitRing, 0.8);
 
@@ -792,7 +929,13 @@ export class GameScene extends Phaser.Scene {
     const spawnX = this.level.spawn.x * TILE_SIZE;
     const spawnY = this.level.spawn.y * TILE_SIZE;
 
-    this.playerGlow = this.add.circle(spawnX, spawnY, 30, COLORS.playerGlow, 0.18);
+    this.playerGlow = this.add.circle(
+      spawnX,
+      spawnY,
+      30,
+      COLORS.playerGlow,
+      0.18,
+    );
 
     this.player = this.add.rectangle(
       spawnX,
@@ -824,27 +967,32 @@ export class GameScene extends Phaser.Scene {
 
     const levelNumber = LEVEL_KEYS.indexOf(this.currentLevelKey) + 1;
 
-this.add.text(24, 48, `Level ${levelNumber}/${LEVEL_KEYS.length}: ${this.level.name}`, {
-  fontFamily: "monospace",
-  fontSize: "14px",
-  color: "#8fdbe8",
-});
+    this.add.text(
+      24,
+      48,
+      `Level ${levelNumber}/${LEVEL_KEYS.length}: ${this.level.name}`,
+      {
+        fontFamily: "monospace",
+        fontSize: "14px",
+        color: "#8fdbe8",
+      },
+    );
 
-this.add.text(24, 72, this.level.instruction, {
-  fontFamily: "monospace",
-  fontSize: "13px",
-  color: "#d7faff",
-  wordWrap: { width: 520 },
-});
+    this.add.text(24, 72, this.level.instruction, {
+      fontFamily: "monospace",
+      fontSize: "13px",
+      color: "#d7faff",
+      wordWrap: { width: 520 },
+    });
 
-this.add.text(24, 96, this.level.hint, {
-  fontFamily: "monospace",
-  fontSize: "12px",
-  color: "#6f96a3",
-  wordWrap: { width: 520 },
-});
+    this.add.text(24, 96, this.level.hint, {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#6f96a3",
+      wordWrap: { width: 520 },
+    });
 
-this.timelineText = this.add.text(24, 128, "", {
+    this.timelineText = this.add.text(24, 128, "", {
       fontFamily: "monospace",
       fontSize: "13px",
       color: "#d7faff",
@@ -862,11 +1010,16 @@ this.timelineText = this.add.text(24, 128, "", {
       color: "#9fffe4",
     });
 
-    this.add.text(24, GAME_HEIGHT - 40, "Esc: menu | Enter/N: next | R: afterimage | Backspace: reset", {
-      fontFamily: "monospace",
-      fontSize: "13px",
-      color: "#6f96a3",
-    });
+    this.add.text(
+      24,
+      GAME_HEIGHT - 40,
+      "Esc/P: pause | Enter/N: next | R: afterimage | Backspace: reset",
+      {
+        fontFamily: "monospace",
+        fontSize: "13px",
+        color: "#6f96a3",
+      },
+    );
 
     this.updateHud();
   }
