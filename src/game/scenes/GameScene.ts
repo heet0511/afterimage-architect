@@ -12,6 +12,7 @@ import {
   TILE_SIZE,
 } from "../constants";
 import { LEVEL_KEYS, SAVE_KEY, type LevelKey } from "../levels";
+import { GeneratedSfx } from "../systems/GeneratedSfx";
 import type {
   DoorState,
   GhostState,
@@ -22,6 +23,7 @@ import type {
 } from "../types";
 
 export class GameScene extends Phaser.Scene {
+  private readonly sfx = new GeneratedSfx();
   private player!: Phaser.GameObjects.Rectangle;
   private playerGlow!: Phaser.GameObjects.Arc;
 
@@ -288,6 +290,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private switchToLevel(levelKey: LevelKey): void {
+    this.sfx.play("select");
     this.scene.restart({ levelKey });
   }
 
@@ -338,6 +341,7 @@ export class GameScene extends Phaser.Scene {
     this.updatePuzzleState();
     this.updateHud();
 
+    this.sfx.play("timelineRestart");
     this.cameras.main.flash(180, 95, 255, 215);
   }
 
@@ -363,19 +367,22 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
 
     this.cameras.main.flash(220, 255, 120, 120);
+    this.sfx.play("reset");
   }
 
   private togglePause(): void {
     if (this.levelComplete) {
       return;
     }
-
+  
     this.isPaused = !this.isPaused;
-
+  
     if (this.isPaused) {
       this.createPauseOverlay();
+      this.sfx.play("pause");
     } else {
       this.destroyPauseOverlay();
+      this.sfx.play("resume");
     }
   }
 
@@ -664,10 +671,12 @@ export class GameScene extends Phaser.Scene {
         door.view.setFillStyle(COLORS.doorOpen, 0.16);
         door.view.setStrokeStyle(2, COLORS.doorOpen, 0.45);
         door.view.setAlpha(0.35);
+        this.sfx.play("doorOpen");
       } else {
         door.view.setFillStyle(COLORS.doorClosed, 0.85);
         door.view.setStrokeStyle(2, 0xffffff, 0.75);
         door.view.setAlpha(1);
+        this.sfx.play("doorClose");
       }
     }
   }
@@ -701,6 +710,7 @@ export class GameScene extends Phaser.Scene {
   private completeLevel(): void {
     this.levelComplete = true;
     this.saveProgress();
+    this.sfx.play("levelComplete");
 
     this.player.setFillStyle(0xffffff);
     this.playerGlow.setAlpha(0.5);

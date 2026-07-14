@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GeneratedSfx } from "../systems/GeneratedSfx";
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, TILE_SIZE } from "../constants";
 import {
   LEVEL_SELECT_INFO,
@@ -6,6 +7,7 @@ import {
 } from "../levels";
 
 export class LevelSelectScene extends Phaser.Scene {
+  private readonly sfx = new GeneratedSfx();
   private levelOneKey!: Phaser.Input.Keyboard.Key;
   private levelTwoKey!: Phaser.Input.Keyboard.Key;
   private levelThreeKey!: Phaser.Input.Keyboard.Key;
@@ -72,17 +74,20 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private tryStartLevel(levelIndex: number): void {
     const levelInfo = LEVEL_SELECT_INFO[levelIndex];
-
+  
     if (!levelInfo) {
       return;
     }
-
+  
     if (levelIndex > this.highestUnlockedLevelIndex) {
+      this.sfx.play("locked");
       this.messageText.setText("Complete the previous level to unlock this one.");
       this.cameras.main.shake(120, 0.004);
       return;
     }
-
+  
+    this.sfx.play("select");
+  
     this.scene.start("GameScene", {
       levelKey: levelInfo.key,
     });
