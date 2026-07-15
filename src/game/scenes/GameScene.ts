@@ -100,6 +100,8 @@ export class GameScene extends Phaser.Scene {
     this.load.json("level-001", "/levels/level-001.json");
     this.load.json("level-002", "/levels/level-002.json");
     this.load.json("level-003", "/levels/level-003.json");
+    this.load.json("level-004", "/levels/level-004.json");
+    this.load.json("level-005", "/levels/level-005.json");
   }
 
   create(): void {

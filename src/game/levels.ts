@@ -1,4 +1,10 @@
-export const LEVEL_KEYS = ["level-001", "level-002", "level-003"] as const;
+export const LEVEL_KEYS = [
+  "level-001",
+  "level-002",
+  "level-003",
+  "level-004",
+  "level-005",
+] as const;
 
 export type LevelKey = (typeof LEVEL_KEYS)[number];
 
@@ -25,6 +31,16 @@ export const LEVEL_SELECT_INFO: LevelSelectInfo[] = [
     key: "level-003",
     name: "Borrowed Weight",
     description: "Record an afterimage to hold the plate for you.",
+  },
+  {
+    key: "level-004",
+    name: "Two Echoes",
+    description: "Use two afterimages to hold two plates at once.",
+  },
+  {
+    key: "level-005",
+    name: "Final Relay",
+    description: "Build a relay of afterimages and cross both doors.",
   },
 ];
 

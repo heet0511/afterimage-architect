@@ -1,16 +1,15 @@
 import Phaser from "phaser";
-import { GeneratedSfx } from "../systems/GeneratedSfx";
 import { COLORS, GAME_HEIGHT, GAME_WIDTH, TILE_SIZE } from "../constants";
 import {
   LEVEL_SELECT_INFO,
   readHighestUnlockedLevelIndex,
 } from "../levels";
+import { GeneratedSfx } from "../systems/GeneratedSfx";
 
 export class LevelSelectScene extends Phaser.Scene {
   private readonly sfx = new GeneratedSfx();
-  private levelOneKey!: Phaser.Input.Keyboard.Key;
-  private levelTwoKey!: Phaser.Input.Keyboard.Key;
-  private levelThreeKey!: Phaser.Input.Keyboard.Key;
+
+  private levelNumberKeys: Phaser.Input.Keyboard.Key[] = [];
   private continueKey!: Phaser.Input.Keyboard.Key;
 
   private highestUnlockedLevelIndex = 0;
@@ -33,19 +32,11 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   update(): void {
-    if (Phaser.Input.Keyboard.JustDown(this.levelOneKey)) {
-      this.tryStartLevel(0);
-      return;
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(this.levelTwoKey)) {
-      this.tryStartLevel(1);
-      return;
-    }
-
-    if (Phaser.Input.Keyboard.JustDown(this.levelThreeKey)) {
-      this.tryStartLevel(2);
-      return;
+    for (let index = 0; index < this.levelNumberKeys.length; index += 1) {
+      if (Phaser.Input.Keyboard.JustDown(this.levelNumberKeys[index])) {
+        this.tryStartLevel(index);
+        return;
+      }
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.continueKey)) {
@@ -54,40 +45,43 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   private createInput(): void {
-    if (!this.input.keyboard) {
+    const keyboard = this.input.keyboard;
+
+    if (!keyboard) {
       throw new Error("Keyboard input is not available.");
     }
 
-    const keys = this.input.keyboard.addKeys("ONE,TWO,THREE") as Record<
-      string,
-      Phaser.Input.Keyboard.Key
-    >;
+    const numberKeyCodes = [
+      Phaser.Input.Keyboard.KeyCodes.ONE,
+      Phaser.Input.Keyboard.KeyCodes.TWO,
+      Phaser.Input.Keyboard.KeyCodes.THREE,
+      Phaser.Input.Keyboard.KeyCodes.FOUR,
+      Phaser.Input.Keyboard.KeyCodes.FIVE,
+    ];
 
-    this.levelOneKey = keys.ONE;
-    this.levelTwoKey = keys.TWO;
-    this.levelThreeKey = keys.THREE;
-
-    this.continueKey = this.input.keyboard.addKey(
-      Phaser.Input.Keyboard.KeyCodes.ENTER,
+    this.levelNumberKeys = numberKeyCodes.map((keyCode) =>
+      keyboard.addKey(keyCode),
     );
+
+    this.continueKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
   }
 
   private tryStartLevel(levelIndex: number): void {
     const levelInfo = LEVEL_SELECT_INFO[levelIndex];
-  
+
     if (!levelInfo) {
       return;
     }
-  
+
     if (levelIndex > this.highestUnlockedLevelIndex) {
       this.sfx.play("locked");
       this.messageText.setText("Complete the previous level to unlock this one.");
       this.cameras.main.shake(120, 0.004);
       return;
     }
-  
+
     this.sfx.play("select");
-  
+
     this.scene.start("GameScene", {
       levelKey: levelInfo.key,
     });
@@ -109,9 +103,9 @@ export class LevelSelectScene extends Phaser.Scene {
 
   private createTitle(): void {
     this.add
-      .text(GAME_WIDTH / 2, 76, "AFTERIMAGE ARCHITECT", {
+      .text(GAME_WIDTH / 2, 54, "AFTERIMAGE ARCHITECT", {
         fontFamily: "monospace",
-        fontSize: "34px",
+        fontSize: "32px",
         color: "#d7faff",
       })
       .setOrigin(0.5);
@@ -119,7 +113,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.add
       .text(
         GAME_WIDTH / 2,
-        116,
+        88,
         "Use recordings of your past attempts to cooperate with yourself.",
         {
           fontFamily: "monospace",
@@ -131,16 +125,16 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   private createLevelCards(): void {
-    const startY = 180;
-    const cardWidth = 620;
-    const cardHeight = 70;
+    const startY = 140;
+    const cardWidth = 640;
+    const cardHeight = 58;
 
     for (let index = 0; index < LEVEL_SELECT_INFO.length; index += 1) {
       const levelInfo = LEVEL_SELECT_INFO[index];
       const isUnlocked = index <= this.highestUnlockedLevelIndex;
 
       const cardX = GAME_WIDTH / 2;
-      const cardY = startY + index * 92;
+      const cardY = startY + index * 70;
 
       const fillColor = isUnlocked ? 0x07131c : 0x05070d;
       const borderColor = isUnlocked ? COLORS.playerGlow : 0x32414a;
@@ -151,19 +145,19 @@ export class LevelSelectScene extends Phaser.Scene {
         .rectangle(cardX, cardY, cardWidth, cardHeight, fillColor, 0.92)
         .setStrokeStyle(1, borderColor, isUnlocked ? 0.7 : 0.4);
 
-      this.add.text(cardX - cardWidth / 2 + 24, cardY - 20, `${index + 1}`, {
+      this.add.text(cardX - cardWidth / 2 + 24, cardY - 18, `${index + 1}`, {
         fontFamily: "monospace",
-        fontSize: "24px",
+        fontSize: "22px",
         color: titleColor,
       });
 
       this.add.text(
         cardX - cardWidth / 2 + 70,
-        cardY - 22,
+        cardY - 18,
         `${levelInfo.name}${isUnlocked ? "" : "  [LOCKED]"}`,
         {
           fontFamily: "monospace",
-          fontSize: "18px",
+          fontSize: "17px",
           color: titleColor,
         },
       );
@@ -183,7 +177,7 @@ export class LevelSelectScene extends Phaser.Scene {
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 76,
-        `Enter: continue from ${continueLevel.name} | 1/2/3: select level`,
+        `Enter: continue from ${continueLevel.name} | 1-${LEVEL_SELECT_INFO.length}: select level`,
         {
           fontFamily: "monospace",
           fontSize: "13px",
