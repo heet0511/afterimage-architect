@@ -6,7 +6,7 @@
 
 ## Live Demo
 
-Coming soon.
+[Play Afterimage Architect]: https://afterimage-architect.vercel.app/
 
 ## Gameplay
 
