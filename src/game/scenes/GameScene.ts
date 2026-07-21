@@ -70,6 +70,7 @@ export class GameScene extends Phaser.Scene {
   private timelineNumber = 1;
   private currentRecording: PlayerInputFrame[] = [];
   private savedRecordings: PlayerInputFrame[][] = [];
+  private trailFrameCounter = 0;
 
   constructor() {
     super("GameScene");
@@ -94,6 +95,7 @@ export class GameScene extends Phaser.Scene {
     this.timelineNumber = 1;
     this.currentRecording = [];
     this.savedRecordings = [];
+    this.trailFrameCounter = 0;
   }
 
   preload(): void {
@@ -343,8 +345,11 @@ export class GameScene extends Phaser.Scene {
     this.updatePuzzleState();
     this.updateHud();
 
-    this.sfx.play("timelineRestart");
     this.cameras.main.flash(180, 95, 255, 215);
+    this.cameras.main.shake(90, 0.0025);
+    this.spawnBurst(this.player.x, this.player.y, COLORS.ghostGlow, 18);
+    this.pulseAt(this.player.x, this.player.y, COLORS.ghostGlow, 34);
+    this.sfx.play("timelineRestart");
   }
 
   private fullResetLevel(): void {
@@ -369,6 +374,9 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
 
     this.cameras.main.flash(220, 255, 120, 120);
+    this.cameras.main.shake(100, 0.003);
+    this.spawnBurst(this.player.x, this.player.y, COLORS.doorClosed, 14);
+    this.pulseAt(this.player.x, this.player.y, COLORS.doorClosed, 32);
     this.sfx.play("reset");
   }
 
@@ -506,6 +514,8 @@ export class GameScene extends Phaser.Scene {
       view,
       glow,
     });
+    this.spawnBurst(spawnX, spawnY, COLORS.ghostGlow, 16);
+    this.pulseAt(spawnX, spawnY, COLORS.ghostGlow, 30);
   }
 
   private resetPlayerToSpawn(): void {
@@ -550,9 +560,17 @@ export class GameScene extends Phaser.Scene {
 
   private movePlayerFromInput(inputFrame: PlayerInputFrame, delta: number): void {
     this.moveActorFromInput(this.player, inputFrame, delta);
-
+  
     this.playerGlow.x = this.player.x;
     this.playerGlow.y = this.player.y;
+  
+    if (this.hasMovementInput(inputFrame)) {
+      this.trailFrameCounter += 1;
+  
+      if (this.trailFrameCounter % 6 === 0) {
+        this.createPlayerTrail(this.player.x, this.player.y);
+      }
+    }
   }
 
   private moveActorFromInput(
@@ -669,17 +687,39 @@ export class GameScene extends Phaser.Scene {
 
       door.open = shouldOpen;
 
-      if (door.open) {
-        door.view.setFillStyle(COLORS.doorOpen, 0.16);
-        door.view.setStrokeStyle(2, COLORS.doorOpen, 0.45);
-        door.view.setAlpha(0.35);
-        this.sfx.play("doorOpen");
-      } else {
-        door.view.setFillStyle(COLORS.doorClosed, 0.85);
-        door.view.setStrokeStyle(2, 0xffffff, 0.75);
-        door.view.setAlpha(1);
-        this.sfx.play("doorClose");
-      }
+      const doorWorldX = door.data.x * TILE_SIZE;
+const doorWorldY = door.data.y * TILE_SIZE;
+
+if (door.open) {
+  door.view.setFillStyle(COLORS.doorOpen, 0.16);
+  door.view.setStrokeStyle(2, COLORS.doorOpen, 0.45);
+
+  this.tweens.add({
+    targets: door.view,
+    alpha: 0.35,
+    scaleX: 0.72,
+    duration: 130,
+    ease: "Sine.easeOut",
+  });
+
+  this.pulseAt(doorWorldX, doorWorldY, COLORS.doorOpen, 34);
+  this.spawnBurst(doorWorldX, doorWorldY, COLORS.doorOpen, 8);
+  this.sfx.play("doorOpen");
+} else {
+  door.view.setFillStyle(COLORS.doorClosed, 0.85);
+  door.view.setStrokeStyle(2, 0xffffff, 0.75);
+
+  this.tweens.add({
+    targets: door.view,
+    alpha: 1,
+    scaleX: 1,
+    duration: 120,
+    ease: "Sine.easeOut",
+  });
+
+  this.pulseAt(doorWorldX, doorWorldY, COLORS.doorClosed, 28);
+  this.sfx.play("doorClose");
+}
     }
   }
 
@@ -713,6 +753,9 @@ export class GameScene extends Phaser.Scene {
     this.levelComplete = true;
     this.saveProgress();
     this.sfx.play("levelComplete");
+    this.spawnBurst(this.exitCore.x, this.exitCore.y, COLORS.exitCore, 28);
+    this.pulseAt(this.exitCore.x, this.exitCore.y, COLORS.exitCore, 46);
+    this.cameras.main.flash(220, 255, 242, 122);
 
     this.player.setFillStyle(0xffffff);
     this.playerGlow.setAlpha(0.5);
@@ -968,6 +1011,78 @@ export class GameScene extends Phaser.Scene {
       repeat: -1,
       ease: "Sine.easeInOut",
     });
+  }
+
+  private hasMovementInput(inputFrame: PlayerInputFrame): boolean {
+    return inputFrame.left || inputFrame.right || inputFrame.up || inputFrame.down;
+  }
+  
+  private createPlayerTrail(x: number, y: number): void {
+    const trail = this.add.rectangle(
+      x,
+      y,
+      PLAYER_SIZE,
+      PLAYER_SIZE,
+      COLORS.player,
+      0.16,
+    );
+  
+    trail.setDepth(1);
+    trail.setStrokeStyle(1, COLORS.playerGlow, 0.2);
+  
+    this.tweens.add({
+      targets: trail,
+      alpha: 0,
+      scale: 0.72,
+      duration: 260,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        trail.destroy();
+      },
+    });
+  }
+  
+  private pulseAt(x: number, y: number, color: number, radius: number): void {
+    const pulse = this.add.circle(x, y, radius, color, 0);
+  
+    pulse.setDepth(30);
+    pulse.setStrokeStyle(2, color, 0.7);
+  
+    this.tweens.add({
+      targets: pulse,
+      alpha: 0,
+      scale: 1.8,
+      duration: 360,
+      ease: "Cubic.easeOut",
+      onComplete: () => {
+        pulse.destroy();
+      },
+    });
+  }
+  
+  private spawnBurst(x: number, y: number, color: number, count: number): void {
+    for (let index = 0; index < count; index += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Phaser.Math.Between(22, 66);
+      const size = Phaser.Math.Between(2, 5);
+  
+      const particle = this.add.circle(x, y, size, color, 0.75);
+  
+      particle.setDepth(31);
+  
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        alpha: 0,
+        scale: 0.2,
+        duration: Phaser.Math.Between(260, 520),
+        ease: "Cubic.easeOut",
+        onComplete: () => {
+          particle.destroy();
+        },
+      });
+    }
   }
 
   private createHud(): void {
